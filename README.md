@@ -9,7 +9,6 @@ API REST Spring Boot pour la gestion d'une agence de location de véhicules : v�
 - **SQL Server** (via `mssql-jdbc`) — base `rideease`
 - **JWT** (`jjwt` 0.13.0) pour l'authentification stateless
 - **Swagger / OpenAPI** (`springdoc-openapi` 2.8.5) pour la documentation interactive
-- **H2** présent en dépendance runtime (utile pour des tests rapides sans SQL Server)
 - **Maven** (wrapper `mvnw` inclus)
 
 ## Structure du projet
