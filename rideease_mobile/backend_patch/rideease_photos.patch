@@ -1,0 +1,441 @@
+diff -ruN -x target a/.gitignore backend/.gitignore
+--- a/.gitignore	2026-10-23 07:37:32.284643237 +0000
++++ b/.gitignore	2026-10-23 07:38:36.354999273 +0000
+@@ -31,3 +31,6 @@
+ 
+ ### VS Code ###
+ .vscode/
++
++### RideEase uploaded pictures ###
++uploads/
+diff -ruN -x target a/src/main/java/com/RideEase_car_Rental_managment_System/CustomExceptions/GlobalExceptionHandler.java backend/src/main/java/com/RideEase_car_Rental_managment_System/CustomExceptions/GlobalExceptionHandler.java
+--- a/src/main/java/com/RideEase_car_Rental_managment_System/CustomExceptions/GlobalExceptionHandler.java	2026-10-23 07:37:32.276008513 +0000
++++ b/src/main/java/com/RideEase_car_Rental_managment_System/CustomExceptions/GlobalExceptionHandler.java	2026-10-23 07:38:36.351516124 +0000
+@@ -66,6 +66,16 @@
+         return buildError(HttpStatus.CONFLICT, ex.getMessage());
+     }
+ 
++    @ExceptionHandler(InvalidImageException.class)
++    public ResponseEntity<Map<String, Object>> handleInvalidImage(InvalidImageException ex) {
++        return buildError(HttpStatus.BAD_REQUEST, ex.getMessage());
++    }
++
++    @ExceptionHandler(org.springframework.web.multipart.MaxUploadSizeExceededException.class)
++    public ResponseEntity<Map<String, Object>> handleTooLarge(org.springframework.web.multipart.MaxUploadSizeExceededException ex) {
++        return buildError(HttpStatus.PAYLOAD_TOO_LARGE, "Image is too large (max 5 MB)");
++    }
++
+     // Helper method for standard errors (timestamp, status, error, message)
+     private ResponseEntity<Map<String, Object>> buildError(HttpStatus status, String message) {
+         Map<String, Object> body = new HashMap<>();
+diff -ruN -x target a/src/main/java/com/RideEase_car_Rental_managment_System/CustomExceptions/InvalidImageException.java backend/src/main/java/com/RideEase_car_Rental_managment_System/CustomExceptions/InvalidImageException.java
+--- a/src/main/java/com/RideEase_car_Rental_managment_System/CustomExceptions/InvalidImageException.java	1970-01-01 00:00:00.000000000 +0000
++++ b/src/main/java/com/RideEase_car_Rental_managment_System/CustomExceptions/InvalidImageException.java	2026-10-23 07:38:14.151472551 +0000
+@@ -0,0 +1,7 @@
++package com.RideEase_car_Rental_managment_System.CustomExceptions;
++
++public class InvalidImageException extends RuntimeException {
++	public InvalidImageException(String message) {
++		super(message);
++	}
++}
+diff -ruN -x target a/src/main/java/com/RideEase_car_Rental_managment_System/DTO/VehicleResponseDTO.java backend/src/main/java/com/RideEase_car_Rental_managment_System/DTO/VehicleResponseDTO.java
+--- a/src/main/java/com/RideEase_car_Rental_managment_System/DTO/VehicleResponseDTO.java	2026-10-23 07:37:32.277601744 +0000
++++ b/src/main/java/com/RideEase_car_Rental_managment_System/DTO/VehicleResponseDTO.java	2026-10-23 07:38:14.170120653 +0000
+@@ -17,6 +17,15 @@
+ 	private VehicleStatus status ;
+ 	private int yearOfManufacture ;
+ 	private Long version ; 
++	// relative URL of the uploaded picture, null when the vehicle uses the default one
++	private String photoUrl ;
++	
++	public String getPhotoUrl() {
++		return photoUrl;
++	}
++	public void setPhotoUrl(String photoUrl) {
++		this.photoUrl = photoUrl;
++	}
+ 	
+ 	public Long getVersion() {
+ 		return version;
+diff -ruN -x target a/src/main/java/com/RideEase_car_Rental_managment_System/controller/ProfilePhotoController.java backend/src/main/java/com/RideEase_car_Rental_managment_System/controller/ProfilePhotoController.java
+--- a/src/main/java/com/RideEase_car_Rental_managment_System/controller/ProfilePhotoController.java	1970-01-01 00:00:00.000000000 +0000
++++ b/src/main/java/com/RideEase_car_Rental_managment_System/controller/ProfilePhotoController.java	2026-10-23 07:38:36.354999273 +0000
+@@ -0,0 +1,79 @@
++package com.RideEase_car_Rental_managment_System.controller;
++
++import java.util.Map;
++
++import org.springframework.http.CacheControl;
++import org.springframework.http.MediaType;
++import org.springframework.http.ResponseEntity;
++import org.springframework.security.core.Authentication;
++import org.springframework.web.bind.annotation.DeleteMapping;
++import org.springframework.web.bind.annotation.GetMapping;
++import org.springframework.web.bind.annotation.PostMapping;
++import org.springframework.web.bind.annotation.RequestMapping;
++import org.springframework.web.bind.annotation.RequestParam;
++import org.springframework.web.bind.annotation.RestController;
++import org.springframework.web.multipart.MultipartFile;
++
++import com.RideEase_car_Rental_managment_System.CustomExceptions.ResourceNotFoundException;
++import com.RideEase_car_Rental_managment_System.entity.User;
++import com.RideEase_car_Rental_managment_System.repository.UserRespository;
++import com.RideEase_car_Rental_managment_System.service.FileStorageService;
++
++/**
++ * Profile picture of the logged-in user (admin, employee or customer).
++ * Any authenticated user can manage THEIR OWN picture: the user is taken from the JWT.
++ */
++@RestController
++@RequestMapping("/api/profile/photo")
++public class ProfilePhotoController {
++
++	private static final String FOLDER = "users";
++
++	private final UserRespository userRepository;
++	private final FileStorageService storage;
++
++	public ProfilePhotoController(UserRespository userRepository, FileStorageService storage) {
++		this.userRepository = userRepository;
++		this.storage = storage;
++	}
++
++	private User current(Authentication authentication) {
++		return userRepository.findByUsername(authentication.getName())
++				.orElseThrow(() -> new ResourceNotFoundException("user not found"));
++	}
++
++	@GetMapping
++	public ResponseEntity<byte[]> get(Authentication authentication) {
++		User user = current(authentication);
++		if (user.getPhotoFile() == null) {
++			return ResponseEntity.notFound().build();
++		}
++		byte[] data = storage.read(FOLDER, user.getPhotoFile());
++		return ResponseEntity.ok()
++				.contentType(MediaType.parseMediaType(FileStorageService.contentType(user.getPhotoFile())))
++				.cacheControl(CacheControl.noCache())
++				.body(data);
++	}
++
++	@PostMapping(consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
++	public ResponseEntity<Map<String, Object>> upload(@RequestParam("file") MultipartFile file,
++			Authentication authentication) {
++		User user = current(authentication);
++		String newFile = storage.storeImage(FOLDER, "user-" + user.getId(), file);
++		String oldFile = user.getPhotoFile();
++		user.setPhotoFile(newFile);
++		userRepository.save(user);
++		storage.delete(FOLDER, oldFile);
++		return ResponseEntity.ok(Map.of("photoUrl", "/api/profile/photo?v=" + newFile));
++	}
++
++	@DeleteMapping
++	public ResponseEntity<Void> remove(Authentication authentication) {
++		User user = current(authentication);
++		String oldFile = user.getPhotoFile();
++		user.setPhotoFile(null);
++		userRepository.save(user);
++		storage.delete(FOLDER, oldFile);
++		return ResponseEntity.noContent().build();
++	}
++}
+diff -ruN -x target a/src/main/java/com/RideEase_car_Rental_managment_System/controller/VehicleController.java backend/src/main/java/com/RideEase_car_Rental_managment_System/controller/VehicleController.java
+--- a/src/main/java/com/RideEase_car_Rental_managment_System/controller/VehicleController.java	2026-10-23 07:37:32.278688923 +0000
++++ b/src/main/java/com/RideEase_car_Rental_managment_System/controller/VehicleController.java	2026-10-23 07:38:36.351181844 +0000
+@@ -1,7 +1,12 @@
+ package com.RideEase_car_Rental_managment_System.controller;
+ import java.util.List;
+ 
++import org.springframework.http.CacheControl;
+ import org.springframework.http.HttpStatus;
++import org.springframework.http.MediaType;
++import org.springframework.web.multipart.MultipartFile;
++import java.util.concurrent.TimeUnit;
++import com.RideEase_car_Rental_managment_System.service.FileStorageService;
+ import org.springframework.http.ResponseEntity;
+ import org.springframework.http.ResponseEntity.BodyBuilder;
+ import org.springframework.web.bind.annotation.DeleteMapping;
+@@ -48,6 +53,25 @@
+ 		VehicleResponseDTO vehicle = vehicleService.updateVehicle(id, dto);
+ 		return ResponseEntity.status(HttpStatus.OK).body(vehicle);
+ 	}
++	// ---- photo: GET is public (see SecurityConfig), POST / DELETE are ADMIN + EMPLOYEE ----
++	@PostMapping(value = "/{id}/photo", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
++	public ResponseEntity<VehicleResponseDTO> uploadPhoto(@PathVariable Long id, @RequestParam("file") MultipartFile file){
++		return ResponseEntity.ok(vehicleService.setPhoto(id, file));
++	}
++	@DeleteMapping("/{id}/photo")
++	public ResponseEntity<VehicleResponseDTO> deletePhoto(@PathVariable Long id){
++		return ResponseEntity.ok(vehicleService.removePhoto(id));
++	}
++	@GetMapping("/{id}/photo")
++	public ResponseEntity<byte[]> getPhoto(@PathVariable Long id){
++		String fileName = vehicleService.getPhotoFileName(id);
++		byte[] data = vehicleService.readPhoto(fileName);
++		// the URL carries ?v=<file name>, so a new upload always gets a new URL: the picture can be cached for long
++		return ResponseEntity.ok()
++				.contentType(MediaType.parseMediaType(FileStorageService.contentType(fileName)))
++				.cacheControl(CacheControl.maxAge(30, TimeUnit.DAYS).cachePublic())
++				.body(data);
++	}
+ 	@DeleteMapping("/{id}")
+ 	public ResponseEntity<Void> deleteVehicle (@PathVariable Long id){
+ 		vehicleService.deleteVehicle(id);
+diff -ruN -x target a/src/main/java/com/RideEase_car_Rental_managment_System/entity/User.java backend/src/main/java/com/RideEase_car_Rental_managment_System/entity/User.java
+--- a/src/main/java/com/RideEase_car_Rental_managment_System/entity/User.java	2026-10-23 07:37:32.279406361 +0000
++++ b/src/main/java/com/RideEase_car_Rental_managment_System/entity/User.java	2026-10-23 07:38:14.170470855 +0000
+@@ -33,6 +33,8 @@
+ 	private boolean enabled=true ;
+ 	@Column(name="created_at", nullable = false)
+ 	private LocalDateTime createdAt ;
++	@Column(name="photo_file", length = 120)
++	private String photoFile ;
+ 	@OneToOne
+ 	@JoinColumn(name="customer_id")
+ 
+@@ -97,6 +99,12 @@
+ 	public void setCreatedAt(LocalDateTime createdAt) {
+ 		this.createdAt = createdAt;
+ 	}
++	public String getPhotoFile() {
++		return photoFile;
++	}
++	public void setPhotoFile(String photoFile) {
++		this.photoFile = photoFile;
++	}
+ 	public Customer getCustomer() {
+ 		return customer;
+ 	}
+diff -ruN -x target a/src/main/java/com/RideEase_car_Rental_managment_System/entity/Vehicle.java backend/src/main/java/com/RideEase_car_Rental_managment_System/entity/Vehicle.java
+--- a/src/main/java/com/RideEase_car_Rental_managment_System/entity/Vehicle.java	2026-10-23 07:37:32.279224486 +0000
++++ b/src/main/java/com/RideEase_car_Rental_managment_System/entity/Vehicle.java	2026-10-23 07:38:14.169701708 +0000
+@@ -39,6 +39,9 @@
+ 	private int yearOfManufacture ;
+ 	@Column(name="version", nullable = false)
+ 	private Long version ; 
++	// name of the uploaded picture (null = the app shows the default picture of the category)
++	@Column(name="photo_file", length = 120)
++	private String photoFile ;
+ 	
+ 	public Long getId() {
+ 		return id;
+@@ -88,6 +91,12 @@
+ 	public void setYearOfManufacture(int yearOfManufacture) {
+ 		this.yearOfManufacture = yearOfManufacture;
+ 	}
++	public String getPhotoFile() {
++		return photoFile;
++	}
++	public void setPhotoFile(String photoFile) {
++		this.photoFile = photoFile;
++	}
+ 	public Long getVersion() {
+ 		return version;
+ 	}
+diff -ruN -x target a/src/main/java/com/RideEase_car_Rental_managment_System/service/FileStorageService.java backend/src/main/java/com/RideEase_car_Rental_managment_System/service/FileStorageService.java
+--- a/src/main/java/com/RideEase_car_Rental_managment_System/service/FileStorageService.java	1970-01-01 00:00:00.000000000 +0000
++++ b/src/main/java/com/RideEase_car_Rental_managment_System/service/FileStorageService.java	2026-10-23 07:38:14.152744746 +0000
+@@ -0,0 +1,120 @@
++package com.RideEase_car_Rental_managment_System.service;
++
++import java.io.IOException;
++import java.io.UncheckedIOException;
++import java.nio.file.Files;
++import java.nio.file.Path;
++import java.nio.file.Paths;
++import java.util.Locale;
++import java.util.UUID;
++
++import org.springframework.beans.factory.annotation.Value;
++import org.springframework.stereotype.Service;
++import org.springframework.web.multipart.MultipartFile;
++
++import com.RideEase_car_Rental_managment_System.CustomExceptions.InvalidImageException;
++import com.RideEase_car_Rental_managment_System.CustomExceptions.ResourceNotFoundException;
++
++/**
++ * Stores uploaded pictures (vehicle photos, profile photos) on disk.
++ * The database only keeps the generated file name.
++ */
++@Service
++public class FileStorageService {
++
++	public static final long MAX_BYTES = 5L * 1024 * 1024;
++
++	private final Path root;
++
++	public FileStorageService(@Value("${app.upload-dir:uploads}") String uploadDir) {
++		this.root = Paths.get(uploadDir).toAbsolutePath().normalize();
++		try {
++			Files.createDirectories(root);
++		} catch (IOException e) {
++			throw new UncheckedIOException(e);
++		}
++	}
++
++	/** Validates the image (real content, not just the extension) and saves it. Returns the new file name. */
++	public String storeImage(String folder, String prefix, MultipartFile file) {
++		if (file == null || file.isEmpty()) {
++			throw new InvalidImageException("No image received");
++		}
++		if (file.getSize() > MAX_BYTES) {
++			throw new InvalidImageException("Image is too large (max 5 MB)");
++		}
++		byte[] data;
++		try {
++			data = file.getBytes();
++		} catch (IOException e) {
++			throw new UncheckedIOException(e);
++		}
++		String ext = detectExtension(data);
++		if (ext == null) {
++			throw new InvalidImageException("Only JPEG, PNG or WEBP images are accepted");
++		}
++		String name = prefix + "-" + UUID.randomUUID().toString().replace("-", "") + ext;
++		try {
++			Path dir = root.resolve(folder).normalize();
++			Files.createDirectories(dir);
++			Files.write(dir.resolve(name), data);
++		} catch (IOException e) {
++			throw new UncheckedIOException(e);
++		}
++		return name;
++	}
++
++	public byte[] read(String folder, String filename) {
++		Path p = resolve(folder, filename);
++		if (!Files.isRegularFile(p)) {
++			throw new ResourceNotFoundException("photo not found");
++		}
++		try {
++			return Files.readAllBytes(p);
++		} catch (IOException e) {
++			throw new UncheckedIOException(e);
++		}
++	}
++
++	/** Silently ignores a null name or a file that is already gone. */
++	public void delete(String folder, String filename) {
++		if (filename == null || filename.isBlank()) {
++			return;
++		}
++		try {
++			Files.deleteIfExists(resolve(folder, filename));
++		} catch (IOException | RuntimeException ignored) {
++			// nothing to do: an orphan file is harmless
++		}
++	}
++
++	public static String contentType(String filename) {
++		String f = filename == null ? "" : filename.toLowerCase(Locale.ROOT);
++		if (f.endsWith(".png")) return "image/png";
++		if (f.endsWith(".webp")) return "image/webp";
++		return "image/jpeg";
++	}
++
++	private Path resolve(String folder, String filename) {
++		Path dir = root.resolve(folder).normalize();
++		Path p = dir.resolve(filename).normalize();
++		if (!p.startsWith(dir)) {
++			throw new ResourceNotFoundException("photo not found");
++		}
++		return p;
++	}
++
++	private static String detectExtension(byte[] d) {
++		if (d.length >= 3 && (d[0] & 0xFF) == 0xFF && (d[1] & 0xFF) == 0xD8 && (d[2] & 0xFF) == 0xFF) {
++			return ".jpg";
++		}
++		if (d.length >= 8 && (d[0] & 0xFF) == 0x89 && d[1] == 'P' && d[2] == 'N' && d[3] == 'G') {
++			return ".png";
++		}
++		if (d.length >= 12 && d[0] == 'R' && d[1] == 'I' && d[2] == 'F' && d[3] == 'F'
++				&& d[8] == 'W' && d[9] == 'E' && d[10] == 'B' && d[11] == 'P') {
++			return ".webp";
++		}
++		return null;
++	}
++}
+diff -ruN -x target a/src/main/java/com/RideEase_car_Rental_managment_System/service/VehicleService.java backend/src/main/java/com/RideEase_car_Rental_managment_System/service/VehicleService.java
+--- a/src/main/java/com/RideEase_car_Rental_managment_System/service/VehicleService.java	2026-10-23 07:37:32.282798848 +0000
++++ b/src/main/java/com/RideEase_car_Rental_managment_System/service/VehicleService.java	2026-10-23 07:38:36.350793189 +0000
+@@ -12,11 +12,15 @@
+ import com.RideEase_car_Rental_managment_System.enumeration.VehicleCategory;
+ import com.RideEase_car_Rental_managment_System.enumeration.VehicleStatus;
+ import com.RideEase_car_Rental_managment_System.repository.VehicleRepository;
++import org.springframework.web.multipart.MultipartFile;
+ 
+ @Service
+ public class VehicleService {
+ 	@Autowired
+ 	private VehicleRepository vehicleRepository ;
++	@Autowired
++	private FileStorageService storage ;
++	private static final String PHOTO_FOLDER = "vehicles";
+ 	
+ 	public VehicleService() {
+ 		super();
+@@ -69,6 +73,36 @@
+ 	public void deleteVehicle(Long id) {
+ 		Vehicle vehicle = vehicleRepository.findById(id).orElseThrow(()-> new ResourceNotFoundException("vehicle not found"));
+ 		vehicleRepository.delete(vehicle);
++		storage.delete(PHOTO_FOLDER, vehicle.getPhotoFile());
++	}
++	/** Replaces the picture of a vehicle. Updating the other fields never touches it. */
++	public VehicleResponseDTO setPhoto(Long id, MultipartFile file) {
++		Vehicle vehicle = vehicleRepository.findById(id).orElseThrow(()-> new ResourceNotFoundException("vehicle not found"));
++		String newFile = storage.storeImage(PHOTO_FOLDER, "vehicle-" + id, file);
++		String oldFile = vehicle.getPhotoFile();
++		vehicle.setPhotoFile(newFile);
++		Vehicle saved = vehicleRepository.save(vehicle);
++		storage.delete(PHOTO_FOLDER, oldFile);
++		return convertToResponseDTO(saved);
++	}
++	/** Goes back to the default picture. */
++	public VehicleResponseDTO removePhoto(Long id) {
++		Vehicle vehicle = vehicleRepository.findById(id).orElseThrow(()-> new ResourceNotFoundException("vehicle not found"));
++		String oldFile = vehicle.getPhotoFile();
++		vehicle.setPhotoFile(null);
++		Vehicle saved = vehicleRepository.save(vehicle);
++		storage.delete(PHOTO_FOLDER, oldFile);
++		return convertToResponseDTO(saved);
++	}
++	public String getPhotoFileName(Long id) {
++		Vehicle vehicle = vehicleRepository.findById(id).orElseThrow(()-> new ResourceNotFoundException("vehicle not found"));
++		if (vehicle.getPhotoFile() == null) {
++			throw new ResourceNotFoundException("this vehicle has no uploaded photo");
++		}
++		return vehicle.getPhotoFile();
++	}
++	public byte[] readPhoto(String fileName) {
++		return storage.read(PHOTO_FOLDER, fileName);
+ 	}
+ 	private VehicleResponseDTO convertToResponseDTO(Vehicle vehicle) {
+ 		VehicleResponseDTO dto = new VehicleResponseDTO();
+@@ -81,6 +115,9 @@
+ 	    dto.setYearOfManufacture(vehicle.getYearOfManufacture());
+ 	    dto.setStatus(vehicle.getStatus());
+ 	    dto.setVersion(vehicle.getVersion());
++	    if (vehicle.getPhotoFile() != null) {
++	    	dto.setPhotoUrl("/api/vehicles/" + vehicle.getId() + "/photo?v=" + vehicle.getPhotoFile());
++	    }
+ 	    return dto;
+ 	}
+ 	
+diff -ruN -x target a/src/main/resources/application.properties backend/src/main/resources/application.properties
+--- a/src/main/resources/application.properties	2026-10-23 07:37:32.283587030 +0000
++++ b/src/main/resources/application.properties	2026-10-23 07:38:36.354999273 +0000
+@@ -9,4 +9,9 @@
+ jwt.secret=RideEaseSuperSecretKeyForJwtAuthentication2026
+ jwt.expiration=86400000
+ 
+-spring.sql.init.mode=never
+\ No newline at end of file
++spring.sql.init.mode=never
++
++# --- pictures (vehicle photos, profile photos) ---
++app.upload-dir=uploads
++spring.servlet.multipart.max-file-size=6MB
++spring.servlet.multipart.max-request-size=7MB

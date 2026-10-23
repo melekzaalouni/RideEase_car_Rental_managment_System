@@ -1,0 +1,158 @@
+diff --git a/src/main/java/com/RideEase_car_Rental_managment_System/DTO/LoginResponseDTO.java b/src/main/java/com/RideEase_car_Rental_managment_System/DTO/LoginResponseDTO.java
+index 8829974..0cf6ea4 100644
+--- a/src/main/java/com/RideEase_car_Rental_managment_System/DTO/LoginResponseDTO.java
++++ b/src/main/java/com/RideEase_car_Rental_managment_System/DTO/LoginResponseDTO.java
+@@ -6,6 +6,9 @@ public class LoginResponseDTO {
+ 	private String tokenType="Bearer";
+ 	private String username;
+ 	private Set<RoleName> roles ;
++	private Long customerId;
++	public Long getCustomerId() { return customerId; }
++	public void setCustomerId(Long customerId) { this.customerId = customerId; }
+ 	public String getToken() {
+ 		return token;
+ 	}
+diff --git a/src/main/java/com/RideEase_car_Rental_managment_System/DTO/UserResponseDTO.java b/src/main/java/com/RideEase_car_Rental_managment_System/DTO/UserResponseDTO.java
+index 3066b5b..3717c78 100644
+--- a/src/main/java/com/RideEase_car_Rental_managment_System/DTO/UserResponseDTO.java
++++ b/src/main/java/com/RideEase_car_Rental_managment_System/DTO/UserResponseDTO.java
+@@ -7,6 +7,9 @@ public class UserResponseDTO {
+ 	private String email ;
+ 	private boolean enabled=true ;
+ 	private LocalDateTime createdAt ;
++	private java.util.Set<String> roles = new java.util.HashSet<>();
++	public java.util.Set<String> getRoles() { return roles; }
++	public void setRoles(java.util.Set<String> roles) { this.roles = roles; }
+ 	
+ 	public UserResponseDTO() {
+ 		super();
+diff --git a/src/main/java/com/RideEase_car_Rental_managment_System/config/SecurityConfig.java b/src/main/java/com/RideEase_car_Rental_managment_System/config/SecurityConfig.java
+index fcb8863..7290b85 100644
+--- a/src/main/java/com/RideEase_car_Rental_managment_System/config/SecurityConfig.java
++++ b/src/main/java/com/RideEase_car_Rental_managment_System/config/SecurityConfig.java
+@@ -18,7 +18,7 @@ import com.RideEase_car_Rental_managment_System.repository.CustumerRepository;
+ import com.RideEase_car_Rental_managment_System.repository.PaymentRepository;
+ import com.RideEase_car_Rental_managment_System.repository.ReservationRepository;
+ 
+-@Configuration
++@Configuration("securityService")
+ @EnableWebSecurity
+ @EnableMethodSecurity
+ public class SecurityConfig {
+@@ -48,6 +48,7 @@ public class SecurityConfig {
+             // =========================
+             // CSRF
+             // =========================
++            .cors(org.springframework.security.config.Customizer.withDefaults())
+             .csrf(AbstractHttpConfigurer::disable)
+ 
+             // =========================
+@@ -218,6 +219,17 @@ public class SecurityConfig {
+     // AUTHENTICATION MANAGER
+     // =========================================================
+ 
++    @Bean
++    public org.springframework.web.cors.CorsConfigurationSource corsConfigurationSource() {
++        var c = new org.springframework.web.cors.CorsConfiguration();
++        c.setAllowedOriginPatterns(java.util.List.of("*"));
++        c.setAllowedMethods(java.util.List.of("GET", "POST", "PUT", "DELETE", "OPTIONS"));
++        c.setAllowedHeaders(java.util.List.of("*"));
++        var src = new org.springframework.web.cors.UrlBasedCorsConfigurationSource();
++        src.registerCorsConfiguration("/**", c);
++        return src;
++    }
++
+     @Bean
+     public AuthenticationManager authenticationManager(
+             AuthenticationConfiguration config) throws Exception {
+diff --git a/src/main/java/com/RideEase_car_Rental_managment_System/controller/AdminController.java b/src/main/java/com/RideEase_car_Rental_managment_System/controller/AdminController.java
+index 211c62e..8dc9177 100644
+--- a/src/main/java/com/RideEase_car_Rental_managment_System/controller/AdminController.java
++++ b/src/main/java/com/RideEase_car_Rental_managment_System/controller/AdminController.java
+@@ -19,8 +19,38 @@ public class AdminController {
+ 
+     private final AdminUserService adminUserService;
+ 
+-    public AdminController(AdminUserService adminUserService) {
++    private final com.RideEase_car_Rental_managment_System.service.StatisticsService statisticsService;
++
++    public AdminController(AdminUserService adminUserService,
++            com.RideEase_car_Rental_managment_System.service.StatisticsService statisticsService) {
+         this.adminUserService = adminUserService;
++        this.statisticsService = statisticsService;
++    }
++
++    @GetMapping("/statistics")
++    @PreAuthorize("hasRole('ADMIN')")
++    public ResponseEntity<?> statistics() {
++        return ResponseEntity.ok(statisticsService.getDashboard());
++    }
++
++    @org.springframework.web.bind.annotation.PutMapping("/users/{id}/enable")
++    @PreAuthorize("hasRole('ADMIN')")
++    public ResponseEntity<UserResponseDTO> enable(@PathVariable Long id) {
++        return ResponseEntity.ok(adminUserService.setEnabled(id, true));
++    }
++
++    @org.springframework.web.bind.annotation.PutMapping("/users/{id}/disable")
++    @PreAuthorize("hasRole('ADMIN')")
++    public ResponseEntity<UserResponseDTO> disable(@PathVariable Long id) {
++        return ResponseEntity.ok(adminUserService.setEnabled(id, false));
++    }
++
++    @org.springframework.web.bind.annotation.PutMapping("/users/{id}/roles")
++    @PreAuthorize("hasRole('ADMIN')")
++    public ResponseEntity<UserResponseDTO> roles(@PathVariable Long id,
++            @org.springframework.web.bind.annotation.RequestBody
++            java.util.Set<com.RideEase_car_Rental_managment_System.enumeration.RoleName> roles) {
++        return ResponseEntity.ok(adminUserService.updateRoles(id, roles));
+     }
+ 
+     @GetMapping("/users")
+diff --git a/src/main/java/com/RideEase_car_Rental_managment_System/security/AdminUserService.java b/src/main/java/com/RideEase_car_Rental_managment_System/security/AdminUserService.java
+index e31e801..2cd7359 100644
+--- a/src/main/java/com/RideEase_car_Rental_managment_System/security/AdminUserService.java
++++ b/src/main/java/com/RideEase_car_Rental_managment_System/security/AdminUserService.java
+@@ -23,13 +23,16 @@ public class AdminUserService {
+ 		this.roleRopository = roleRopository;
+ 	}
+ 	private UserResponseDTO toUserResponse(User user) {
+-	    return new UserResponseDTO(
++	    UserResponseDTO dto = new UserResponseDTO(
+ 	        user.getId(),
+ 	        user.getUsername(),
+ 	        user.getEmail(),
+ 	        user.isEnabled(),
+ 	        user.getCreatedAt()
+ 	    );
++	    dto.setRoles(user.getRoles().stream().map(r -> r.getName().name())
++	        .collect(java.util.stream.Collectors.toSet()));
++	    return dto;
+ 	}
+ 	public UserResponseDTO getUserById(Long userId) {
+ 
+diff --git a/src/main/java/com/RideEase_car_Rental_managment_System/security/AuthenticationService.java b/src/main/java/com/RideEase_car_Rental_managment_System/security/AuthenticationService.java
+index cc06e98..5e5f159 100644
+--- a/src/main/java/com/RideEase_car_Rental_managment_System/security/AuthenticationService.java
++++ b/src/main/java/com/RideEase_car_Rental_managment_System/security/AuthenticationService.java
+@@ -102,6 +102,7 @@ public class AuthenticationService {
+         response.setToken(token);
+         response.setTokenType("Bearer");
+         response.setUsername(user.getUsername());
++        response.setCustomerId(user.getCustomer() != null ? user.getCustomer().getId() : null);
+         response.setRoles(
+         	    user.getRoles()
+         	        .stream()
+diff --git a/src/main/java/com/RideEase_car_Rental_managment_System/service/VehicleService.java b/src/main/java/com/RideEase_car_Rental_managment_System/service/VehicleService.java
+index 819d5ed..c43749f 100644
+--- a/src/main/java/com/RideEase_car_Rental_managment_System/service/VehicleService.java
++++ b/src/main/java/com/RideEase_car_Rental_managment_System/service/VehicleService.java
+@@ -53,7 +53,7 @@ public class VehicleService {
+ 		return responses ;
+ 	}
+ 	public VehicleResponseDTO updateVehicle(Long id, VehicleRequestDTO dto) {
+-		if(vehicleRepository.existsByLicensePlate(dto.getLicensePlate())) {
++		if(vehicleRepository.existsByLicensePlateAndIdNot(dto.getLicensePlate(), id)) {
+ 			throw new DuplicateResourceException("licencePlate existe !");
+ 		}
+ 		Vehicle vehicle = vehicleRepository.findById(id).orElseThrow(()-> new ResourceNotFoundException("vehicle not found"));
