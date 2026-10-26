@@ -205,7 +205,7 @@ Authorization: Bearer <token>
 
 ### Stack technique
 
-- **Flutter** (Dart ≥ 3.5, Material 3, thème clair / sombre automatique)
+- **Flutter** (Dart ≥ 3.5, Material 3, thème clair / sombre / automatique au choix de l'utilisateur)
 - **flutter_riverpod** — gestion d'état
 - **go_router** — navigation et redirection selon la connexion
 - **dio** — appels HTTP, intercepteur JWT, upload multipart
@@ -220,6 +220,7 @@ lib/
 ├── main.dart, app.dart
 ├── core/
 │   ├── theme.dart          # couleurs (AppColors), thème clair/sombre — un seul endroit
+│   ├── theme_controller.dart # choix du thème (clair / sombre / auto), mémorisé sur l'appareil
 │   ├── config.dart         # adresse du backend, devise
 │   ├── router.dart         # routes + redirections
 │   ├── network/            # client dio, gestion des erreurs API
@@ -251,7 +252,8 @@ assets/images/              # logo et images par défaut des véhicules
 - **Photo de profil** : onglet Profile, toucher l'avatar (galerie, et caméra sur téléphone, ou supprimer). Elle s'affiche aussi dans l'en-tête de l'écran des véhicules. Formats JPEG / PNG / WEBP, 5 Mo maximum.
 
 #### Identité visuelle
-- Palette orange brûlé / ambre sur neutres chauds, modifiable dans `lib/core/theme.dart`.
+- Palette indigo / cyan sur neutres ardoise, modifiable dans `lib/core/theme.dart`.
+- Thème clair, sombre ou automatique : onglet Profile > Appearance, ou bouton soleil/lune sur l'écran des véhicules ; le choix est mémorisé sur l'appareil.
 - Logo : `assets/images/logo.png` (écrans de connexion / inscription et icônes de l'application sur toutes les plateformes).
 
 ### Prérequis
