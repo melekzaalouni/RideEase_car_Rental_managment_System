@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/format.dart';
 import '../../core/media/photo_picker.dart';
 import '../../core/theme.dart';
+import '../../core/theme_controller.dart';
 import '../../core/network/api_exception.dart';
 import '../../core/widgets/common.dart';
 import '../../core/widgets/user_avatar.dart';
@@ -121,6 +122,8 @@ class ProfileScreen extends ConsumerWidget {
           child: Column(
             children: [
               Card(child: Column(children: tiles)),
+              const SizedBox(height: 16),
+              const _AppearanceCard(),
               const SizedBox(height: 20),
               SizedBox(
                 width: double.infinity,
@@ -150,6 +153,46 @@ class ProfileScreen extends ConsumerWidget {
           ),
         ),
       ],
+    );
+  }
+}
+
+class _AppearanceCard extends ConsumerWidget {
+  const _AppearanceCard();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final mode = ref.watch(themeModeProvider);
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Row(
+              children: [
+                Icon(Icons.palette_outlined, color: AppColors.primary),
+                SizedBox(width: 12),
+                Text('Appearance', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 15)),
+              ],
+            ),
+            const SizedBox(height: 14),
+            SizedBox(
+              width: double.infinity,
+              child: SegmentedButton<ThemeMode>(
+                showSelectedIcon: false,
+                segments: const [
+                  ButtonSegment(value: ThemeMode.system, icon: Icon(Icons.brightness_auto_outlined), label: Text('Auto')),
+                  ButtonSegment(value: ThemeMode.light, icon: Icon(Icons.light_mode_outlined), label: Text('Light')),
+                  ButtonSegment(value: ThemeMode.dark, icon: Icon(Icons.dark_mode_outlined), label: Text('Dark')),
+                ],
+                selected: {mode},
+                onSelectionChanged: (s) => ref.read(themeModeProvider.notifier).set(s.first),
+              ),
+            ),
+          ],
+        ),
+      ),
     );
   }
 }

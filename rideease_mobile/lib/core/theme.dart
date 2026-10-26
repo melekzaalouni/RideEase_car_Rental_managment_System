@@ -1,18 +1,25 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 
+/// Modern indigo / cyan palette on slate neutrals. Works in light and dark mode.
 class AppColors {
-  static const primary = Color(0xFFD9480F); // burnt orange
-  static const accent = Color(0xFFF59F00); // amber
-  static const ink = Color(0xFF1F1A17);
-  static const surface = Color(0xFFFAF7F2);
-  static const border = Color(0xFFE8E0D6);
-  static const muted = Color(0xFF756D64);
-  static const success = Color(0xFF2F9E44);
-  static const warning = Color(0xFFF08C00);
-  static const danger = Color(0xFFE03131);
-  static const heroStart = Color(0xFF2A211B); // dark espresso
-  static const heroEnd = Color(0xFF9C3408); // rust
+  static const primary = Color(0xFF6366F1); // indigo
+  static const accent = Color(0xFF22D3EE); // cyan
+  static const ink = Color(0xFF0F172A); // slate 900
+  static const surface = Color(0xFFF6F7FB);
+  // Translucent on purpose: reads as a soft line on white and on dark cards.
+  static const border = Color(0x338A94AD);
+  static const muted = Color(0xFF6B7490);
+  static const success = Color(0xFF16A34A);
+  static const warning = Color(0xFFF59E0B);
+  static const danger = Color(0xFFE5484D);
+  static const heroStart = Color(0xFF1E1B4B); // deep indigo
+  static const heroEnd = Color(0xFF6D28D9); // violet
+
+  // Dark theme surfaces
+  static const darkSurface = Color(0xFF0B1020);
+  static const darkCard = Color(0xFF131A30);
+  static const darkSnack = Color(0xFF263049);
 }
 
 class AppSpacing {
@@ -35,15 +42,16 @@ ThemeData buildTheme(Brightness b) {
     primary: AppColors.primary,
     secondary: AppColors.accent,
     onPrimary: Colors.white,
-    surface: dark ? const Color(0xFF17120F) : AppColors.surface,
+    surface: dark ? AppColors.darkSurface : AppColors.surface,
+    outlineVariant: AppColors.border,
   );
   final base = ThemeData(useMaterial3: true, colorScheme: scheme, brightness: b);
-  final cardColor = dark ? const Color(0xFF231C18) : Colors.white;
-  final borderColor = dark ? const Color(0xFF3A2F28) : AppColors.border;
+  final cardColor = dark ? AppColors.darkCard : Colors.white;
+  const borderColor = AppColors.border;
   final text = GoogleFonts.plusJakartaSansTextTheme(base.textTheme);
 
   OutlineInputBorder ob(Color c, [double w = 1]) => OutlineInputBorder(
-        borderRadius: BorderRadius.circular(14),
+        borderRadius: BorderRadius.circular(16),
         borderSide: BorderSide(color: c, width: w),
       );
 
@@ -52,6 +60,7 @@ ThemeData buildTheme(Brightness b) {
     scaffoldBackgroundColor: scheme.surface,
     appBarTheme: AppBarTheme(
       backgroundColor: scheme.surface,
+      surfaceTintColor: Colors.transparent,
       elevation: 0,
       scrolledUnderElevation: 0,
       titleTextStyle: text.titleLarge?.copyWith(
@@ -60,12 +69,14 @@ ThemeData buildTheme(Brightness b) {
       ),
     ),
     cardTheme: CardThemeData(
-      elevation: 0,
+      elevation: dark ? 0 : 2,
+      shadowColor: const Color(0x1A0F172A),
+      surfaceTintColor: Colors.transparent,
       margin: EdgeInsets.zero,
       color: cardColor,
       shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(20),
-        side: BorderSide(color: borderColor),
+        borderRadius: BorderRadius.circular(24),
+        side: const BorderSide(color: borderColor),
       ),
     ),
     inputDecorationTheme: InputDecorationTheme(
@@ -74,33 +85,60 @@ ThemeData buildTheme(Brightness b) {
       contentPadding: const EdgeInsets.all(16),
       border: ob(borderColor),
       enabledBorder: ob(borderColor),
-      focusedBorder: ob(AppColors.primary, 1.6),
+      focusedBorder: ob(AppColors.primary, 1.8),
       errorBorder: ob(AppColors.danger),
-      focusedErrorBorder: ob(AppColors.danger, 1.6),
+      focusedErrorBorder: ob(AppColors.danger, 1.8),
     ),
     filledButtonTheme: FilledButtonThemeData(
       style: FilledButton.styleFrom(
         minimumSize: const Size(88, 54),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        elevation: 0,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
         textStyle: const TextStyle(fontWeight: FontWeight.w700),
       ),
     ),
     outlinedButtonTheme: OutlinedButtonThemeData(
       style: OutlinedButton.styleFrom(
         minimumSize: const Size(88, 54),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        side: BorderSide(color: borderColor),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
+        side: const BorderSide(color: borderColor),
         textStyle: const TextStyle(fontWeight: FontWeight.w700),
       ),
     ),
+    floatingActionButtonTheme: const FloatingActionButtonThemeData(
+      backgroundColor: AppColors.primary,
+      foregroundColor: Colors.white,
+    ),
     navigationBarTheme: NavigationBarThemeData(
-      height: 68,
+      height: 70,
+      elevation: 0,
+      surfaceTintColor: Colors.transparent,
       backgroundColor: cardColor,
-      indicatorColor: AppColors.primary.withValues(alpha: 0.12),
-      labelTextStyle: WidgetStateProperty.all(const TextStyle(fontWeight: FontWeight.w600, fontSize: 12)),
+      indicatorColor: AppColors.primary.withValues(alpha: dark ? 0.28 : 0.14),
+      indicatorShape: const StadiumBorder(),
+      iconTheme: WidgetStateProperty.resolveWith(
+        (states) => IconThemeData(
+          color: states.contains(WidgetState.selected) ? AppColors.primary : AppColors.muted,
+        ),
+      ),
+      labelTextStyle: WidgetStateProperty.resolveWith(
+        (states) => TextStyle(
+          fontWeight: FontWeight.w700,
+          fontSize: 12,
+          color: states.contains(WidgetState.selected) ? AppColors.primary : AppColors.muted,
+        ),
+      ),
+    ),
+    bottomSheetTheme: BottomSheetThemeData(
+      backgroundColor: cardColor,
+      surfaceTintColor: Colors.transparent,
+      showDragHandle: true,
+      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(28))),
     ),
     chipTheme: base.chipTheme.copyWith(
-      shape: StadiumBorder(side: BorderSide(color: borderColor)),
+      shape: const StadiumBorder(side: BorderSide(color: borderColor)),
+      selectedColor: AppColors.primary.withValues(alpha: dark ? 0.30 : 0.16),
+      showCheckmark: false,
     ),
   );
 }

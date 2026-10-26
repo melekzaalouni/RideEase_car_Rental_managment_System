@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
+import '../../core/theme_controller.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../core/models/enums.dart';
@@ -105,7 +106,13 @@ class _VehiclesScreenState extends ConsumerState<VehiclesScreen> {
                             ],
                           ),
                         ),
-                        UserAvatar(name: session?.username ?? '', radius: 22),
+                        Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            const ThemeToggleButton(color: Colors.white),
+                            UserAvatar(name: session?.username ?? '', radius: 22),
+                          ],
+                        ),
                       ],
                     ),
                     const SizedBox(height: 16),

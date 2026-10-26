@@ -9,7 +9,9 @@ void showSnack(BuildContext context, String message, {bool isError = false}) {
     content: Text(message),
     behavior: SnackBarBehavior.floating,
     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-    backgroundColor: isError ? AppColors.danger : AppColors.ink,
+    backgroundColor: isError
+        ? AppColors.danger
+        : (Theme.of(context).brightness == Brightness.dark ? AppColors.darkSnack : AppColors.ink),
   ));
 }
 
@@ -124,15 +126,15 @@ class ShimmerList extends StatelessWidget {
   Widget build(BuildContext context) {
     final dark = Theme.of(context).brightness == Brightness.dark;
     return Shimmer.fromColors(
-      baseColor: dark ? const Color(0xFF2A221D) : const Color(0xFFE8E0D6),
-      highlightColor: dark ? const Color(0xFF3A2F28) : const Color(0xFFF4EEE6),
+      baseColor: dark ? const Color(0xFF1B2238) : const Color(0xFFE4E7EF),
+      highlightColor: dark ? const Color(0xFF263049) : const Color(0xFFF1F3F9),
       child: Column(
         children: List.generate(
           count,
           (_) => Container(
             height: height,
             margin: const EdgeInsets.only(bottom: 16),
-            decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(20)),
+            decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(24)),
           ),
         ),
       ),

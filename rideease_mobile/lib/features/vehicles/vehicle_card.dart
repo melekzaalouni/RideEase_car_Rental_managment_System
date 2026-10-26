@@ -23,15 +23,43 @@ class VehicleCard extends StatelessWidget {
               children: [
                 SizedBox(
                   width: double.infinity,
-                  height: 180,
+                  height: 190,
                   child: VehicleImage(photoUrl: v.photoUrl, category: v.category),
                 ),
+                const Positioned.fill(
+                  child: DecoratedBox(
+                    decoration: BoxDecoration(
+                      gradient: LinearGradient(
+                        begin: Alignment.topCenter,
+                        end: Alignment.bottomCenter,
+                        colors: [Color(0x00000000), Color(0x99000000)],
+                        stops: [0.5, 1.0],
+                      ),
+                    ),
+                  ),
+                ),
                 Positioned(left: 12, top: 12, child: _Chip(label: v.status.label, color: v.status.color)),
-                Positioned(right: 12, top: 12, child: _Chip(label: v.category.label, color: AppColors.ink)),
+                Positioned(right: 12, top: 12, child: _Chip(label: v.category.label, color: AppColors.primary)),
+                Positioned(
+                  left: 16,
+                  bottom: 12,
+                  child: Text.rich(
+                    TextSpan(
+                      text: money(v.dailyRate),
+                      style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w800, fontSize: 20),
+                      children: const [
+                        TextSpan(
+                          text: '  / day',
+                          style: TextStyle(color: Colors.white70, fontWeight: FontWeight.w600, fontSize: 12),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
               ],
             ),
             Padding(
-              padding: const EdgeInsets.all(16),
+              padding: const EdgeInsets.fromLTRB(16, 14, 12, 14),
               child: Row(
                 children: [
                   Expanded(
@@ -50,13 +78,14 @@ class VehicleCard extends StatelessWidget {
                       ],
                     ),
                   ),
-                  Column(
-                    crossAxisAlignment: CrossAxisAlignment.end,
-                    children: [
-                      Text(money(v.dailyRate),
-                          style: const TextStyle(color: AppColors.primary, fontWeight: FontWeight.w800)),
-                      const Text('per day', style: TextStyle(color: AppColors.muted, fontSize: 12)),
-                    ],
+                  Container(
+                    width: 40,
+                    height: 40,
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      color: AppColors.primary.withValues(alpha: 0.12),
+                    ),
+                    child: const Icon(Icons.arrow_forward_rounded, size: 20, color: AppColors.primary),
                   ),
                 ],
               ),
